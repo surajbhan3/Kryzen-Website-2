@@ -1,0 +1,1 @@
+Extract the entire ZIP, then open index.html. Keep assets, app.js and style.css beside it. Hindi/English switch works locally. This preview requires backend integration for live OTP, prices, verified BOM quantities and payments.
