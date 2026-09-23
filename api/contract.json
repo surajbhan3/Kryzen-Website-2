@@ -1,0 +1,243 @@
+{
+  "version": "1.0.0",
+  "status": "proposed; backend integration pending",
+  "money": {
+    "currency": "INR",
+    "storage": "integer paise",
+    "rounding": "per invoice line to nearest paise"
+  },
+  "endpoints": {
+    "GET /api/catalogue": {
+      "returns": "products, material SKUs, bilingual labels, dimension rules, addons; no invented prices"
+    },
+    "POST /api/auth/otp/request": {
+      "body": {
+        "phone": "+91XXXXXXXXXX",
+        "channel": "whatsapp",
+        "locale": "hi",
+        "mode": "signup|login",
+        "name": "required for signup"
+      },
+      "returns": {
+        "challengeId": "opaque",
+        "expiresInSeconds": 300,
+        "resendAfterSeconds": 30
+      },
+      "requirements": [
+        "approved authentication template",
+        "rate limits",
+        "provider integration",
+        "no OTP returned to client",
+        "Generate four-digit OTP server-side; enforce expiry and limited verification attempts",
+        "Bind signup profile to challenge; login challenges must not overwrite existing profile"
+      ]
+    },
+    "POST /api/auth/otp/verify": {
+      "body": {
+        "challengeId": "opaque",
+        "code": "four digits",
+        "configuration": "current farm configuration"
+      },
+      "returns": {
+        "verified": true,
+        "progressSaved": true,
+        "user": {
+          "email": "verified account email"
+        }
+      },
+      "requirements": [
+        "Verify OTP server-side before creating authenticated HttpOnly Secure SameSite session cookie",
+        "Persist account profile and configuration before returning progressSaved true",
+        "Never accept client verification status or client account IDs"
+      ]
+    },
+    "POST /api/leads": {
+      "body": {
+        "name": "string",
+        "phone": "verified E.164",
+        "whatsappPhone": "verified E.164",
+        "pincode": "six digits",
+        "locale": "hi",
+        "contactConsent": false,
+        "contactMethod": "call",
+        "preferredTime": null,
+        "configuration": "configuration object"
+      },
+      "requirements": [
+        "deduplicate by verified customer",
+        "record consent timestamp and version",
+        "assign agent",
+        "scope all reads to authenticated account"
+      ]
+    },
+    "POST /api/quotations": {
+      "body": {
+        "configuration": "configuration object",
+        "addons": "addon selection object",
+        "paymentPlan": "booking99",
+        "promoCode": null
+      },
+      "returns": "authoritative versioned quotation with calculated BOM and all totals"
+    },
+    "GET /api/me/quotations": {
+      "returns": "owned quotations only"
+    },
+    "POST /api/orders": {
+      "body": {
+        "quoteId": "opaque",
+        "quoteVersion": 1,
+        "termsVersion": "string"
+      },
+      "requirements": [
+        "idempotency key",
+        "quote validity check",
+        "server recomputation",
+        "authenticated owner"
+      ]
+    },
+    "POST /api/orders/:id/payment-proofs": {
+      "body": "transaction reference and securely stored file upload",
+      "returns": {
+        "status": "under_verification"
+      },
+      "requirements": [
+        "owner authorization",
+        "file size and type validation",
+        "malware scanning",
+        "never treat upload as payment confirmation"
+      ]
+    },
+    "GET /api/orders/:id/progress": {
+      "returns": "dated milestones, expected dispatch, verified balance, shipping information"
+    },
+    "GET /api/construction-teams": {
+      "query": "state, minMembers, minRating, productId, availability",
+      "returns": "verified teams only"
+    },
+    "POST /api/orders/:id/team": {
+      "body": {
+        "teamId": "opaque"
+      },
+      "requirements": [
+        "verified booking",
+        "availability check",
+        "server price calculation"
+      ]
+    },
+    "GET /api/me/invoices/:id": {
+      "returns": "short-lived document download for authenticated owner only"
+    },
+    "POST /api/transport-estimates": {
+      "body": {
+        "quoteId": "opaque",
+        "pincode": "six digits"
+      },
+      "returns": {
+        "vehicleCount": null,
+        "freightPaise": null,
+        "status": "requires_confirmation"
+      }
+    }
+  },
+  "configurationExample": {
+    "productId": "nvph65",
+    "heightM": 6.5,
+    "thicknessMm": 2,
+    "spanM": 32,
+    "bayM": 60,
+    "areaM2": 1920,
+    "groundCover": "weedmat",
+    "fogging": false,
+    "drip": {
+      "required": true,
+      "type": "arrow"
+    }
+  },
+  "dimensionRules": {
+    "spanM": {
+      "min": 8,
+      "max": 144,
+      "step": 8
+    },
+    "bayM": {
+      "min": 4,
+      "max": 276,
+      "step": 4
+    },
+    "note": "Product engineering rules must be supplied and enforced server-side"
+  },
+  "skuExample": {
+    "id": "COL-BIG-76-2-6500",
+    "name": {
+      "en": "Big column",
+      "hi": "बड़ा कॉलम"
+    },
+    "specification": {
+      "diameterMm": 76,
+      "thicknessMm": 2,
+      "lengthMm": 6500
+    },
+    "hsn": null,
+    "gstBps": null,
+    "unit": "nos",
+    "unitPricePaise": null,
+    "stock": null,
+    "packMultiple": 1,
+    "quantityEditableInSystem": false,
+    "individualSaleEnabled": true,
+    "brand": null
+  },
+  "quotationResponse": {
+    "id": "opaque",
+    "version": 1,
+    "status": "draft",
+    "expiresAt": null,
+    "configuration": {},
+    "lines": [],
+    "subtotalPaise": null,
+    "promoDiscountPaise": null,
+    "gstPaise": null,
+    "addonsPaise": null,
+    "constructionPaise": null,
+    "freightPaise": null,
+    "totalPaise": null,
+    "verifiedPaidPaise": 0,
+    "dueNowPaise": null,
+    "balancePaise": null,
+    "vehicleCount": null
+  },
+  "rules": {
+    "promo": {
+      "quoteBound": true,
+      "expiresAtRequired": true,
+      "maxDiscountPaiseRequired": true,
+      "usageLimitRequired": true
+    },
+    "insurancePaisePerVehicle": 150000,
+    "labReportPaise": 250000,
+    "dprPaise": 250000,
+    "priority": {
+      "productId": "nvph65",
+      "listPricePaise": 250000,
+      "chargedPaise": 0,
+      "dispatchTargetHours": 24
+    },
+    "standardDispatchTargetHours": 72,
+    "dispatchRequiresClearedBalance": true,
+    "manufacturingStartsAfterVerifiedDeposit": true,
+    "priceLockDuration": "commercial confirmation pending",
+    "constructionPaymentTiming": "commercial confirmation pending",
+    "taxOnServices": "provided by backend; no assumed flat GST",
+    "bookingAmountPaise": 9900,
+    "balancePaymentTiming": "Pay remaining amount on dispatch"
+  },
+  "security": [
+    "All account resources require server-side ownership checks",
+    "Signed document URLs expire",
+    "No client-created paid status",
+    "Payment reconciliation only through trusted staff/provider",
+    "Webhook signatures and replay protection",
+    "Audit quote edits and discount approvals",
+    "No personal data in analytics or public static files"
+  ]
+}
