@@ -2,7 +2,7 @@
 // Change this single constant (or set window.API_BASE_URL) to point to your backend server.
 const API_BASE_URL =
   (typeof window !== "undefined" && (window.API_BASE_URL || window.__API_BASE_URL__)) ||
-  "http://localhost:4501";
+  "https://alpha-cvpmke743q-el.a.run.app";
 
 const $ = (s) => document.querySelector(s);
 const storage = {
