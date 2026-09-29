@@ -1,3 +1,9 @@
+// Central Backend API Base URL
+// Change this single constant (or set window.API_BASE_URL) to point to your backend server.
+const API_BASE_URL =
+  (typeof window !== "undefined" && (window.API_BASE_URL || window.__API_BASE_URL__)) ||
+  "http://localhost:4501";
+
 const $ = (s) => document.querySelector(s);
 const storage = {
   get(k) {
@@ -247,6 +253,7 @@ function change(k, v) {
     c.maxStep = 0;
     selectedTeam = null;
     c.selectedTeam = null;
+    delete c.performaInvoice;
     materialCatalogue = { status: "idle", rows: [], error: "" };
   } else if (
     ["construction", "transport", "insurance", "lab", "dpr"].includes(k)
@@ -254,6 +261,7 @@ function change(k, v) {
     c.maxStep = Math.min(c.maxStep || 0, 2);
     selectedTeam = null;
     c.selectedTeam = null;
+    delete c.performaInvoice;
   }
   if (!c.drip) c.dripper = "arrow";
   if (!c.dpr) c.crop = "";
@@ -866,6 +874,14 @@ const sample = [
   ],
   ["FILM-250-55", "पॉलीफिल्म", "Polyfilm", "250 micron · 5.5 m", 332, "m"],
   ["WEED-42-100", "वीडमैट", "Weedmat", "4.2 m · 100 GSM", 470, "m"],
+  [
+    "NET-50",
+    "इन्सेक्ट / शेड नेट",
+    "Insect / shade net",
+    "50 Mesh · 40-50 GSM",
+    280,
+    "m",
+  ],
 ];
 function heading(h, e, subh, sube) {
   return `<div class="heading"><div><h1>${T(h, e)}</h1><p>${T(subh, sube)}</p></div></div>`;
@@ -874,6 +890,7 @@ function navButtons(back, next) {
   return `<div class="footerbuttons">${back ? `<button type="button" class="secondary" onclick="go('${back}')">← ${T("पीछे", "Back")}</button>` : ""}<button type="button" class="primary dark" onclick="go('${next}')">${T("आगे बढ़ें", "Continue")} →</button></div>`;
 }
 const imageMap = {
+  // SKUs
   "COL-BIG-76-2-6500": 45,
   "COL-SM-76-2-4500": 47,
   "BOTTOM-60-2-6000": 49,
@@ -881,6 +898,57 @@ const imageMap = {
   "FOUND-60-2-1000": 84,
   "FILM-250-55": 74,
   "WEED-42-100": 42,
+  "NET-50": 96,
+  "SHADOW-NET-50": 96,
+  "INSECT-NET-50": 96,
+  // Names (English)
+  "big column": 45,
+  "small column": 47,
+  "big bottom": 49,
+  "big arc": 67,
+  "foundation pipe": 84,
+  "polyfilm": 74,
+  "weedmat": 42,
+  "insect / shade net": 96,
+  "shade net": 96,
+  "insect net": 96,
+  "Big column": 45,
+  "Small column": 47,
+  "Big bottom": 49,
+  "Big arc": 67,
+  "Foundation pipe": 84,
+  "Polyfilm": 74,
+  "Weedmat": 42,
+  "Insect / shade net": 96,
+  // Names (Hindi)
+  "बड़ा कॉलम": 45,
+  "छोटा कॉलम": 47,
+  "बिग बॉटम": 49,
+  "बड़ा आर्क": 67,
+  "फाउंडेशन पाइप": 84,
+  "पॉलीफिल्म": 74,
+  "वीडमैट": 42,
+  "इन्सेक्ट / शेड नेट": 96,
+  "शेड नेट": 96,
+  "इन्सेक्ट नेट": 96,
+  // Direct IDs / Strings
+  mulch: 42,
+  "42": 42,
+  "45": 45,
+  "47": 47,
+  "49": 49,
+  "67": 67,
+  "74": 74,
+  "84": 84,
+  "96": 96,
+  "item-42": 42,
+  "item-45": 45,
+  "item-47": 47,
+  "item-49": 49,
+  "item-67": 67,
+  "item-74": 74,
+  "item-84": 84,
+  "item-96": 96,
 };
 function productPhoto(id, alt) {
   return `<img class="product-photo" src="./assets/product-${id}.png" alt="${esc(alt)}" width="300" height="150">`;
@@ -916,17 +984,46 @@ function hideImagePreview() {
   imagePreview = null;
 }
 function itemPhoto(id, alt) {
-  const value = String(id || "");
-  const src =
+  const value = String(id || "").trim();
+  const altValue = String(alt || "").trim();
+  let filename = "";
+
+  const mappedNum =
     typeof id === "number"
-      ? `item-${id}.png`
-      : imageMap[id]
-        ? `item-${imageMap[id]}.png`
-        : /^(?:https?:|data:|\/|\.\/)/i.test(value) ||
-          /\.(?:svg|png|jpe?g|webp)(?:[?#].*)?$/i.test(value)
-          ? value
-          : value + ".png";
-  return `<img class="item-photo" src="${esc(src)}" alt="${esc(alt)}" width="76" height="76" loading="lazy" onmouseenter="showImagePreview(this)" onmouseleave="hideImagePreview()">`;
+      ? id
+      : imageMap[value] ||
+      imageMap[altValue] ||
+      imageMap[value.toLowerCase()] ||
+      imageMap[altValue.toLowerCase()];
+
+  if (mappedNum) {
+    filename = `item-${mappedNum}.png`;
+  } else if (/^item-\d+\.png$/i.test(value)) {
+    filename = value;
+  } else if (/^item-\d+$/i.test(value)) {
+    filename = `${value}.png`;
+  } else if (/^\d+$/.test(value)) {
+    filename = `item-${value}.png`;
+  } else if (/^(?:https?:|data:|\/|\.\/)/i.test(value)) {
+    filename = value;
+  } else if (/\.(?:svg|png|jpe?g|webp)(?:[?#].*)?$/i.test(value)) {
+    filename = value;
+  } else if (value) {
+    filename = `${value}.png`;
+  } else {
+    filename = "option-placeholder.svg";
+  }
+
+  const src =
+    filename.startsWith("./") ||
+      filename.startsWith("/") ||
+      filename.startsWith("http:") ||
+      filename.startsWith("https:") ||
+      filename.startsWith("data:")
+      ? filename
+      : `./assets/${filename}`;
+
+  return `<img class="item-photo" src="${esc(src)}" alt="${esc(alt)}" width="76" height="76" loading="lazy" onerror="this.onerror=null;this.src='./assets/option-placeholder.svg'" onmouseenter="showImagePreview(this)" onmouseleave="hideImagePreview()">`;
 }
 function selectedMaterials() {
   const net = ["square", "tunnelnet"].includes(c.product),
@@ -1310,7 +1407,7 @@ async function loadMaterials() {
     //   },
     // });
     const response = await fetch(
-      `http://localhost:4501/materialPlanning/calculateceaList?length=12&width=36&hydroponicType=cea-nvph&hydrponicPercentage=100%25`,
+      `${API_BASE_URL}/materialPlanning/calculateceaList?length=12&width=36&hydroponicType=cea-nvph&hydrponicPercentage=100%25`,
       {
         method: "GET",
         credentials: "same-origin",
@@ -1538,7 +1635,7 @@ async function calculateTransport() {
 
     try {
       const response = await fetch(
-        "http://localhost:4501/pc-distance/get-transport-distance",
+        `${API_BASE_URL}/pc-distance/get-transport-distance`,
         {
           method: "POST",
           headers: {
@@ -1929,7 +2026,7 @@ function savedTransactions() {
 }
 
 const BACKEND_QUOTATION_API =
-  "http://localhost:4501/pc-quotation/get-user-quotations";
+  `${API_BASE_URL}/pc-quotation/get-user-quotations`;
 let backendQuotations = [];
 let backendQuotationsLoading = false;
 let backendQuotationsFetched = false;
@@ -1941,7 +2038,7 @@ function getUserQuotationMobile() {
     if (typeof getStoredUserCredentials === "function") {
       mob = getStoredUserCredentials().mobileNumber;
     }
-  } catch {}
+  } catch { }
   return (
     mob ||
     c.mobile ||
@@ -1950,8 +2047,7 @@ function getUserQuotationMobile() {
     storage.get("contactNumber") ||
     storage.get("mobileNumber") ||
     storage.get("mobile") ||
-    storage.get("phone") ||
-    "8920213684"
+    storage.get("phone")
   );
 }
 
@@ -1975,9 +2071,9 @@ function calculateQuotationOrderFinancials(
     const services =
       typeof selectedAddonCosts === "function"
         ? selectedAddonCosts().reduce(
-            (sum, item) => sum + (item.amount || 0),
-            0,
-          )
+          (sum, item) => sum + (item.amount || 0),
+          0,
+        )
         : 0;
     return {
       total: (totals.total || 0) + services,
@@ -2056,16 +2152,16 @@ function mapBackendQuotationToOrder(q) {
   const orderTotal =
     Number(
       qData.grandTotal ||
-        qData.totalAmount ||
-        qData.tableData?.totals?.grandTotal ||
-        (qData.materialTotals && qData.materialTotals.total),
+      qData.totalAmount ||
+      qData.tableData?.totals?.grandTotal ||
+      (qData.materialTotals && qData.materialTotals.total),
     ) || fin.total;
 
   const orderGst =
     Number(
       qData.gstAmount ||
-        qData.tableData?.totals?.gst ||
-        (qData.materialTotals && qData.materialTotals.gst),
+      qData.tableData?.totals?.gst ||
+      (qData.materialTotals && qData.materialTotals.gst),
     ) || fin.gst;
 
   const isCompleted = paymentVerified && paidAmount >= orderTotal && orderTotal > 0;
@@ -2222,7 +2318,7 @@ const PAYMENT_TOKEN_KEY = "kryzen-payment-token";
 
 async function generatePaymentToken() {
   const response = await fetch(
-    "http://localhost:4501/instamojo-for-protected-cultivation/generatetoken",
+    `${API_BASE_URL}/instamojo-for-protected-cultivation/generatetoken`,
     {
       method: "POST",
       credentials: "same-origin",
@@ -2271,7 +2367,7 @@ async function generatePaymentToken() {
 
 async function createPayment(data) {
   const response = await fetch(
-    "http://localhost:4501/instamojo-for-protected-cultivation/create-payment",
+    `${API_BASE_URL}/instamojo-for-protected-cultivation/create-payment`,
     {
       method: "POST",
       credentials: "same-origin",
@@ -2381,9 +2477,9 @@ async function bookMaterialNow() {
         Number.isFinite(item.gstPercent);
       const gstAmount = hasPrice
         ? Math.round(
-            (Math.round(item.quantity * item.rate * 100) * item.gstPercent) /
-              100,
-          ) / 100
+          (Math.round(item.quantity * item.rate * 100) * item.gstPercent) /
+          100,
+        ) / 100
         : null;
       const lineTotal = hasPrice
         ? Math.round((item.quantity * item.rate + gstAmount) * 100) / 100
@@ -2428,8 +2524,22 @@ async function bookMaterialNow() {
       areaSqm: area(),
     };
 
+    c.tableData = tableData;
+    c.quotationItems = tableItems;
+
+    const {
+      quotationItems: _qi,
+      tableData: _td,
+      quotationData: _qd,
+      materials: _mat,
+      items: _itms,
+      performaInvoice: _pi,
+      maxStep: _ms,
+      ...cleanConfig
+    } = c;
+
     const payment = await createPayment({
-      ...c,
+      ...cleanConfig,
       invoiceId: invoice.id,
       customerName,
       name: customerName,
@@ -2441,24 +2551,18 @@ async function bookMaterialNow() {
       token,
       date: indiaDate(),
       tableData,
-      quotationItems: tableItems,
-      materials: tableItems,
-      items: tableItems,
-      materialTotals: totals,
-      subtotal: totals.subtotal,
-      gstAmount: totals.gst,
-      materialTotal: totals.total,
-      additionalServicesCharges: totalServicesCharges,
-      additionalServices: addonCosts.filter((s) => s.selected),
       grandTotal: combinedTotal,
-      gstSummary: tableData.gstSummary,
-      areaSqm: area(),
     });
     window.location.href = payment.longurl;
   } catch (error) {
     if (status)
       status.textContent =
         error.message || T("पेमेंट विफल हुआ।", "Payment failed.");
+    showPaymentResult({
+      status: "failed",
+      name: c.name || c.customerName,
+      contact: c.phone || c.mobile,
+    });
     if ([400, 401, 409].includes(error.status)) {
       toast(
         error.message ||
@@ -2473,7 +2577,7 @@ async function bookMaterialNow() {
 function isPaymentSuccessStatus(status) {
   if (!status) return false;
   const s = String(status).trim().toLowerCase();
-  return ["credit", "success", "successful", "completed", "paid", "captured"].includes(s);
+  return ["credit", "success", "successful", "completed", "paid", "captured", "true", "ok"].includes(s);
 }
 
 function getPaymentReturnParams() {
@@ -2587,10 +2691,12 @@ function processPaymentReturn(params) {
     }
     storage.set("kryzen-transactions", JSON.stringify(transactions));
     c.maxStep = Math.max(Number(c.maxStep || 0), 4);
+    delete c.performaInvoice;
     save();
   } else {
     if (target) {
-      target.paymentStatus = params.status;
+      target.paymentStatus = "failed";
+      target.status = "payment_failed";
       target.paymentErrorAt = new Date().toISOString();
       storage.set("kryzen-transactions", JSON.stringify(transactions));
     }
@@ -2615,22 +2721,22 @@ function showPaymentResult(details) {
   }
 
   const statusTitle = isSuccess
-    ? T("बुकिंग भुगतान सफल रहा!", "Booking Payment Successful!")
-    : T("भुगतान पूरा नहीं हो सका", "Payment Not Completed");
+    ? T("भुगतान सफल!", "Payment Successful!")
+    : T("भुगतान विफल!", "Payment Failed!");
 
   const statusSubtitle = isSuccess
     ? T(
-        `धन्यवाद${params.name ? " " + esc(params.name) : ""}! ₹99 का आपका सामग्री टोकन भुगतान प्राप्त हो गया है।`,
-        `Thank you${params.name ? " " + esc(params.name) : ""}! Your material booking payment of ₹99 is confirmed.`,
-      )
+      `धन्यवाद${params.name ? " " + esc(params.name) : ""}! ₹99 का आपका सामग्री टोकन भुगतान प्राप्त हो गया है।`,
+      `Thank you${params.name ? " " + esc(params.name) : ""}! Your material booking payment of ₹99 is confirmed.`,
+    )
     : T(
-        "भुगतान पूरा नहीं किया जा सका अथवा रद्द हो गया।",
-        "The transaction was not completed or was cancelled.",
-      );
+      "भुगतान विफल रहा अथवा पूरा नहीं हो सका। कृपया पुनः प्रयास करें।",
+      "Payment failed or could not be completed. Please try again.",
+    );
 
   const statusPill = isSuccess
-    ? `<span class="payment-badge success">✓ ${esc(params.status || "SUCCESS / PAID")}</span>`
-    : `<span class="payment-badge failed">✕ ${esc(params.status || "FAILED")}</span>`;
+    ? `<span class="payment-badge success">✓ ${T("भुगतान सफल", "Payment Successful")}</span>`
+    : `<span class="payment-badge failed">✕ ${T("भुगतान विफल", "Payment Failed")}</span>`;
 
   const dateStr = new Intl.DateTimeFormat("en-IN", {
     dateStyle: "medium",
@@ -2643,11 +2749,10 @@ function showPaymentResult(details) {
       <button type="button" class="close" aria-label="Close" onclick="closePaymentResult()">×</button>
       
       <div class="payment-status-icon ${isSuccess ? "success" : "failure"}">
-        ${
-          isSuccess
-            ? `<svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>`
-            : `<svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`
-        }
+        ${isSuccess
+      ? `<svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>`
+      : `<svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>`
+    }
       </div>
 
       <h2 class="payment-status-title ${isSuccess ? "success" : "failure"}">${statusTitle}</h2>
@@ -2658,9 +2763,8 @@ function showPaymentResult(details) {
           <span class="payment-detail-label">${T("स्थिति", "Status")}</span>
           <span class="payment-detail-val">${statusPill}</span>
         </div>
-        ${
-          params.paymentId
-            ? `<div class="payment-detail-row">
+        ${params.paymentId
+      ? `<div class="payment-detail-row">
                 <span class="payment-detail-label">${T("पेमेंट आईडी", "Payment ID")}</span>
                 <span class="payment-detail-val">
                   <code class="payment-id-code">${esc(params.paymentId)}</code>
@@ -2670,24 +2774,22 @@ function showPaymentResult(details) {
                   </button>
                 </span>
               </div>`
-            : ""
-        }
-        ${
-          params.name
-            ? `<div class="payment-detail-row">
+      : ""
+    }
+        ${params.name
+      ? `<div class="payment-detail-row">
                 <span class="payment-detail-label">${T("ग्राहक का नाम", "Customer Name")}</span>
                 <span class="payment-detail-val">${esc(params.name)}</span>
               </div>`
-            : ""
-        }
-        ${
-          params.contact
-            ? `<div class="payment-detail-row">
+      : ""
+    }
+        ${params.contact
+      ? `<div class="payment-detail-row">
                 <span class="payment-detail-label">${T("संपर्क नंबर", "Contact Number")}</span>
                 <span class="payment-detail-val">${esc(params.contact)}</span>
               </div>`
-            : ""
-        }
+      : ""
+    }
         <div class="payment-detail-row">
           <span class="payment-detail-label">${T("टोकन राशि", "Token Amount")}</span>
           <span class="payment-detail-val"><strong>₹99.00</strong></span>
@@ -2699,30 +2801,28 @@ function showPaymentResult(details) {
       </div>
 
       <div class="payment-info-banner ${isSuccess ? "success" : "failed"}">
-        ${
-          isSuccess
-            ? `<strong>✓ ${T("अगला कदम:", "Next steps:")}</strong> ${T("हमारी इंजीनियरिंग और डिस्पैच समन्वय टीम सामग्री शेड्यूलिंग के लिए आपसे संपर्क करेगी। बाकी भुगतान डिस्पैच के समय किया जाएगा।", "Our dispatch coordination team will contact you to coordinate delivery. Remaining payment is due on dispatch.")}`
-            : `<strong>⚠ ${T("कोई चिंता नहीं:", "Don't worry:")}</strong> ${T("यदि आपके खाते से पैसे कट गए हैं, तो 3-5 कार्य दिवसों में बैंक द्वारा स्वतः वापस आ जाएंगे। आपका प्रोजेक्ट कॉन्फ़िगरेशन सुरक्षित है।", "If any amount was deducted, your bank will refund it within 3-5 business days. Your project configuration remains safely saved.")}`
-        }
+        ${isSuccess
+      ? `<strong>✓ ${T("अगला कदम:", "Next steps:")}</strong> ${T("हमारी इंजीनियरिंग और डिस्पैच समन्वय टीम सामग्री शेड्यूलिंग के लिए आपसे संपर्क करेगी। बाकी भुगतान डिस्पैच के समय किया जाएगा।", "Our dispatch coordination team will contact you to coordinate delivery. Remaining payment is due on dispatch.")}`
+      : `<strong>⚠ ${T("भुगतान विफल:", "Payment Failed:")}</strong> ${T("लेन-देन पूरा नहीं हो सका। यदि आपके बैंक खाते से पैसे कट गए हैं, तो 3-5 कार्य दिवसों में बैंक द्वारा स्वतः वापस आ जाएंगे। आपका प्रोजेक्ट कॉन्फ़िगरेशन सुरक्षित है।", "Transaction failed or could not be completed. If any amount was deducted, your bank will automatically refund it within 3-5 business days. Your project configuration remains safely saved.")}`
+    }
       </div>
 
       <div class="payment-modal-actions">
-        ${
-          isSuccess
-            ? `<button type="button" class="primary dark" onclick="closePaymentResult(); go('account');">
+        ${isSuccess
+      ? `<button type="button" class="primary dark" onclick="closePaymentResult(); go('account');">
                 ${T("ऑर्डर ट्रैक करें", "View Order in Account")} →
               </button>
               <button type="button" class="secondary" onclick="downloadMaterialPdf();">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="12" y1="18" x2="12" y2="12"></line><polyline points="9 15 12 18 15 15"></polyline></svg>
                 <span>${T("PDF डाउनलोड करें", "Download PDF")}</span>
               </button>`
-            : `<button type="button" class="primary dark" onclick="closePaymentResult(); go('billing');">
+      : `<button type="button" class="primary dark" onclick="closePaymentResult(); retryBookingPayment();">
                 ${T("पुनः प्रयास करें", "Try Again")} →
               </button>
               <a href="tel:+919870424425" class="secondary" style="display:inline-flex; align-items:center; justify-content:center; gap:6px; text-decoration:none;">
                 <span>☎ +91 9870-424-425</span>
               </a>`
-        }
+    }
       </div>
     </div>
   `;
@@ -2745,6 +2845,12 @@ function closePaymentResult() {
   }
   cleanPaymentUrlParams();
   render();
+}
+
+function retryBookingPayment() {
+  ensurePerformaInvoice(true);
+  render();
+  go("billing");
 }
 
 function cleanPaymentUrlParams() {
@@ -2821,7 +2927,7 @@ window.handlePaymentReturn = handlePaymentReturn;
 function transactionBankDetails() {
   return `<div class="payment-bank"><div class="payment-bank-heading"><h3>${T("बैंक ट्रांसफर विवरण", "Bank transfer details")}</h3><span>NEFT / RTGS / SWIFT</span></div><dl><dt>${T("खाताधारक", "Account holder")}</dt><dd>KRYZEN TECHNOLOGIES PRIVATE LIMITED</dd><dt>${T("खाते का प्रकार", "Account type")}</dt><dd>${T("चालू खाता", "Current account")}</dd><dt>${T("खाता संख्या", "Account number")}</dt><dd class="bank-number">756505002274</dd><dt>${T("IFSC कोड", "IFSC code")}</dt><dd class="bank-number">ICIC0007565</dd></dl></div>`;
 }
-function ensurePerformaInvoice() {
+function ensurePerformaInvoice(forceNew = false) {
   savedTransactions();
   const transactionKey = JSON.stringify(
     [
@@ -2848,14 +2954,34 @@ function ensurePerformaInvoice() {
       "dpr",
     ].map((key) => c[key] ?? null),
   );
+
+  const isAlreadyPaid = (id) => {
+    if (!id) return false;
+    return getAllOrders().some(
+      (t) =>
+        (String(t.id) === String(id) ||
+          String(t.performaInvoiceId) === String(id) ||
+          String(t.orderId) === String(id)) &&
+        Boolean(t.paymentVerified),
+    );
+  };
+
+  const keyChanged = Boolean(
+    c.performaInvoice?.transactionKey &&
+    c.performaInvoice.transactionKey !== transactionKey,
+  );
+  const alreadyPaid = isAlreadyPaid(c.performaInvoice?.id);
+
   if (
+    forceNew ||
     !c.performaInvoice ||
     !c.performaInvoice.id ||
-    (c.performaInvoice.transactionKey && c.performaInvoice.transactionKey !== transactionKey)
+    keyChanged ||
+    alreadyPaid
   ) {
     c.performaInvoice = {
-      id: c.performaInvoice?.id || generateUUID(),
-      createdAt: c.performaInvoice?.createdAt || new Date().toISOString(),
+      id: generateUUID(),
+      createdAt: new Date().toISOString(),
       transactionKey,
     };
     save();
@@ -3040,18 +3166,18 @@ function printMaterialInvoiceFallback(invoice, rows, totals) {
       </thead>
       <tbody>
         ${rows
-          .map((item, i) => {
-            const hasPrice =
-              Number.isFinite(item.quantity) &&
-              Number.isFinite(item.rate) &&
-              Number.isFinite(item.gstPercent);
-            const gst = hasPrice
-              ? Math.round((Math.round(item.quantity * item.rate * 100) * item.gstPercent) / 100) / 100
-              : null;
-            const itemHsn = item.hsn && item.hsn !== "—" && item.hsn !== "-" ? item.hsn : defaultMaterialHsn(item);
-            return `<tr><td class="center">${i + 1}</td><td><strong>${esc(item.name)}</strong></td><td class="center">${esc(itemHsn)}</td><td class="center">${item.quantity ?? "—"}</td><td class="center">${materialType(item.unit)}</td><td class="num">${summaryAmount(item.rate)}</td><td class="num">${summaryAmount(gst)}</td></tr>`;
-          })
-          .join("")}
+      .map((item, i) => {
+        const hasPrice =
+          Number.isFinite(item.quantity) &&
+          Number.isFinite(item.rate) &&
+          Number.isFinite(item.gstPercent);
+        const gst = hasPrice
+          ? Math.round((Math.round(item.quantity * item.rate * 100) * item.gstPercent) / 100) / 100
+          : null;
+        const itemHsn = item.hsn && item.hsn !== "—" && item.hsn !== "-" ? item.hsn : defaultMaterialHsn(item);
+        return `<tr><td class="center">${i + 1}</td><td><strong>${esc(item.name)}</strong></td><td class="center">${esc(itemHsn)}</td><td class="center">${item.quantity ?? "—"}</td><td class="center">${materialType(item.unit)}</td><td class="num">${summaryAmount(item.rate)}</td><td class="num">${summaryAmount(gst)}</td></tr>`;
+      })
+      .join("")}
       </tbody>
     </table>
     <div class="totals">
@@ -3063,10 +3189,9 @@ function printMaterialInvoiceFallback(invoice, rows, totals) {
     </div>
     <p><strong>Amount in words:</strong> ${rupeesInWords(grandTotalWithServices)}</p>
     <div class="bank-box">
-      <strong>Bank Transfer Details (NEFT / RTGS / SWIFT):</strong>
-      <div>Beneficiary: KRYZEN BIOTECH PRIVATE LIMITED | Bank: ICICI Bank</div>
-      <div>Current Account: 756505002274 | IFSC Code: ICIC0007565</div>
-      <small style="color:#64748b">Book material by paying Rs. 99 token. Remaining balance payable on dispatch.</small>
+      <strong>Booking & Payment Information:</strong>
+      <div>Booking Token Amount: Rs. 99 only (Payable online)</div>
+      <small style="color:#64748b">Pay Rs. 99 token to lock your materials and quotation rates. Remaining balance payable on dispatch.</small>
     </div>
     <script>window.onload = function() { window.print(); };</script>
   </body></html>`;
@@ -3236,10 +3361,10 @@ function downloadMaterialPdf(orderParam) {
       n == null
         ? "—"
         : "Rs. " +
-          new Intl.NumberFormat("en-IN", {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
-          }).format(n);
+        new Intl.NumberFormat("en-IN", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        }).format(n);
 
     const invoiceDate = new Intl.DateTimeFormat("en-IN", {
       day: "2-digit",
@@ -3728,15 +3853,15 @@ function downloadMaterialPdf(orderParam) {
         item.gstAmount != null && !isNaN(Number(item.gstAmount))
           ? Number(item.gstAmount)
           : (hasPrice
-              ? Math.round((Math.round(qtyNum * rateNum * 100) * gstPctNum) / 100) / 100
-              : null);
+            ? Math.round((Math.round(qtyNum * rateNum * 100) * gstPctNum) / 100) / 100
+            : null);
 
       const lineTotal =
         item.totalAmount != null && !isNaN(Number(item.totalAmount))
           ? Number(item.totalAmount)
           : (hasPrice
-              ? Math.round((qtyNum * rateNum + (gstAmt || 0)) * 100) / 100
-              : null);
+            ? Math.round((qtyNum * rateNum + (gstAmt || 0)) * 100) / 100
+            : null);
 
       let itemName = item.name || "Material Item";
       if (hindiToEngMap[itemName]) itemName = hindiToEngMap[itemName];
@@ -3830,7 +3955,7 @@ function downloadMaterialPdf(orderParam) {
       currentY = 20;
     }
 
-    // 5. Summary Block: Words & Bank on left, Totals on right
+    // 5. Summary Block: Words & Booking Info on left, Totals on right
     const summaryLeftWidth = 105;
     const summaryRightWidth = 80;
 
@@ -3838,7 +3963,7 @@ function downloadMaterialPdf(orderParam) {
       (orderParam ? Number(qData.additionalServicesCharges || 0) : selectedAddonCosts().reduce((sum, item) => sum + item.amount, 0));
     const pdfGrandTotal = Number(totals.grandTotal) || (totals.total + pdfServiceTotal);
 
-    // Left side: Amount in Words & Bank details
+    // Left side: Amount in Words & Booking details
     doc.setDrawColor(24, 24, 24);
     doc.setLineWidth(0.2);
     doc.rect(10, currentY, summaryLeftWidth, summaryHeight, "S");
@@ -3857,7 +3982,7 @@ function downloadMaterialPdf(orderParam) {
     doc.setFontSize(8);
     doc.setTextColor(...slateDark);
     doc.text(
-      "BANK TRANSFER DETAILS (FOR BOOKING / PAYMENT):",
+      "ONLINE BOOKING PAYMENT:",
       14,
       currentY + 20,
     );
@@ -3866,24 +3991,19 @@ function downloadMaterialPdf(orderParam) {
     doc.setFontSize(7.5);
     doc.setTextColor(...textDark);
     doc.text(
-      "Beneficiary: KRYZEN BIOTECH PRIVATE LIMITED",
+      "Booking Token: Rs. 99 (Payable online)",
       14,
-      currentY + 25,
+      currentY + 26,
     );
     doc.text(
-      "Bank: ICICI Bank  |  A/C Type: Current Account",
+      "Pay Rs. 99 token to lock your materials and quotation rates.",
       14,
-      currentY + 29.5,
+      currentY + 31.5,
     );
     doc.text(
-      "Account No: 756505002274  |  IFSC: ICIC0007565",
+      "Remaining balance is payable on dispatch coordination.",
       14,
-      currentY + 34,
-    );
-    doc.text(
-      "Booking Token: Rs. 99 (Balance payable on dispatch)",
-      14,
-      currentY + 38.5,
+      currentY + 37,
     );
 
     // Right side: Totals Box
@@ -4016,7 +4136,7 @@ function downloadMaterialPdf(orderParam) {
     doc.setFontSize(7);
     doc.setTextColor(...textMuted);
     doc.text(
-      "1. Book your material by paying Rs. 99 token. Balance payment is due upon dispatch coordination.",
+      "1. Book your material online by paying Rs. 99 token via Instamojo. Balance payment is due upon dispatch coordination.",
       10,
       currentY + 4,
     );
@@ -4073,18 +4193,18 @@ function quotationCustomerData() {
   let draft = {};
   try {
     draft = JSON.parse(storage.get("kryzen-draft") || "{}") || {};
-  } catch {}
+  } catch { }
   let customUser = {};
   try {
     customUser =
       JSON.parse(
         storage.get("user") ||
-          storage.get("profile") ||
-          storage.get("aditya") ||
-          storage.get("kryzen-user") ||
-          "{}",
+        storage.get("profile") ||
+        storage.get("aditya") ||
+        storage.get("kryzen-user") ||
+        "{}",
       ) || {};
-  } catch {}
+  } catch { }
 
   const customerName =
     c.customerName ||
@@ -4237,8 +4357,8 @@ function billingAdditionalServicesSection() {
         </thead>
         <tbody>
           ${services
-            .map(
-              (s) => `
+      .map(
+        (s) => `
             <tr class="${s.selected ? "service-row-selected" : "service-row-unselected"}">
               <td><strong>${s.name}</strong></td>
               <td>${s.desc}</td>
@@ -4253,8 +4373,8 @@ function billingAdditionalServicesSection() {
               </td>
             </tr>
           `,
-            )
-            .join("")}
+      )
+      .join("")}
         </tbody>
         <tfoot>
           <tr>
@@ -4335,13 +4455,16 @@ function invoiceReceipt() {
     )}</tbody></table><dl class="invoice-totals"><dt>${T("सामग्री मूल्य", "Material Subtotal")}</dt><dd>${summaryAmount(totals.subtotal)}</dd><dt>${T("सामग्री GST (18%)", "Material GST")}</dt><dd>${summaryAmount(totals.gst)}</dd><dt>${T("राउंडिंग ऑफ", "Rounding off")}</dt><dd>${totals.rounding > 0 ? "+" : ""}${summaryAmount(totals.rounding)}</dd><dt class="invoice-grand-total">${T("कुल सामग्री लागत", "Total Material Cost")}</dt><dd class="invoice-grand-total">${summaryAmount(totals.total)}</dd>${totalServicesCharges > 0 ? `<dt class="services-charge-row">${T("अतिरिक्त सेवाएं शुल्क", "Additional Services Charges")}</dt><dd class="services-charge-row">${summaryAmount(totalServicesCharges)}</dd><dt class="invoice-grand-total grand-with-services">${T("सेवाओं सहित कुल राशि", "Total Estimated Amount (with services)")}</dt><dd class="invoice-grand-total grand-with-services">${summaryAmount(combinedTotal)}</dd>` : ""}</dl><p class="invoice-words"><strong>Amount in words:</strong> ${rupeesInWords(combinedTotal)}</p><p class="invoice-email">Final invoice will be emailed to you at “${esc(c.email || "user email id")}”.</p></section>`;
 }
 function billing() {
-  const currentInvoice = c.performaInvoice;
+  const invoice = ensurePerformaInvoice();
+  const currentInvoice = c.performaInvoice || invoice;
   const order = currentInvoice
     ? getAllOrders().find(
-        (t) =>
-          t.id === currentInvoice.id ||
-          t.performaInvoiceId === currentInvoice.id,
-      )
+      (t) =>
+        (String(t.id) === String(currentInvoice.id) ||
+          String(t.performaInvoiceId) === String(currentInvoice.id) ||
+          String(t.orderId) === String(currentInvoice.id)) &&
+        Boolean(t.paymentVerified),
+    )
     : null;
   const isPaid = !!order?.paymentVerified;
 
@@ -4694,26 +4817,25 @@ function orderDocuments(order, index) {
   const orderId = String(order.id);
   const isFailed = orderCategory(order) === "payment_failed";
   const isQuot = orderCategory(order) === "quotations";
-  return `<div class="order-actions">${
-    isQuot || isFailed
-      ? `<button class="secondary" onclick="modifyAccountOrder('${esc(orderId)}')">${T("ऑर्डर देखें / बदलें", "View / Modify order")}</button>${isQuot ? `<button class="secondary delete-quotation" onclick="deleteOngoingOrder('${esc(orderId)}')">${T("कोटेशन हटाएं", "Delete quotation")}</button>` : ""}`
-      : ""
-  }${[
-    ["invoice", "इनवॉइस डाउनलोड करें", "Download invoice"],
-    ["quotation", "कोटेशन डाउनलोड करें", "Download quotation"],
-    ["insurance", "बीमा प्रमाणपत्र", "Insurance certificate"],
-    ["fitness", "फिटनेस प्रमाणपत्र", "Fitness certificate"],
-  ]
-    .map(([key, hi, en]) => {
-      const available =
-        key === "quotation" ||
-        key === "invoice" ||
-        !!order.documents?.[key] ||
-        sampleDocumentAvailable(order, key) ||
-        (key === "quotation" && !!order.quotationItems?.length);
-      return `<button class="secondary" ${available ? "" : "disabled"} title="${available ? T(hi, en) : T("जारी होने के बाद उपलब्ध", "Available when issued")}" onclick="downloadOrderDocument('${esc(orderId)}','${key}')">${T(hi, en)}</button>`;
-    })
-    .join("")}</div>`;
+  return `<div class="order-actions">${isQuot || isFailed
+    ? `<button class="secondary" onclick="modifyAccountOrder('${esc(orderId)}')">${T("ऑर्डर देखें / बदलें", "View / Modify order")}</button>${isQuot ? `<button class="secondary delete-quotation" onclick="deleteOngoingOrder('${esc(orderId)}')">${T("कोटेशन हटाएं", "Delete quotation")}</button>` : ""}`
+    : ""
+    }${[
+      ["invoice", "इनवॉइस डाउनलोड करें", "Download invoice"],
+      ["quotation", "कोटेशन डाउनलोड करें", "Download quotation"],
+      ["insurance", "बीमा प्रमाणपत्र", "Insurance certificate"],
+      ["fitness", "फिटनेस प्रमाणपत्र", "Fitness certificate"],
+    ]
+      .map(([key, hi, en]) => {
+        const available =
+          key === "quotation" ||
+          key === "invoice" ||
+          !!order.documents?.[key] ||
+          sampleDocumentAvailable(order, key) ||
+          (key === "quotation" && !!order.quotationItems?.length);
+        return `<button class="secondary" ${available ? "" : "disabled"} title="${available ? T(hi, en) : T("जारी होने के बाद उपलब्ध", "Available when issued")}" onclick="downloadOrderDocument('${esc(orderId)}','${key}')">${T(hi, en)}</button>`;
+      })
+      .join("")}</div>`;
 }
 function downloadOrderDocument(id, kind) {
   const order = getAllOrders().find(
@@ -4905,12 +5027,12 @@ function getStoredUserCredentials() {
     customUser =
       JSON.parse(
         storage.get("user") ||
-          storage.get("kryzen-user") ||
-          storage.get("profile") ||
-          storage.get("pcUser") ||
-          "{}",
+        storage.get("kryzen-user") ||
+        storage.get("profile") ||
+        storage.get("pcUser") ||
+        "{}",
       ) || {};
-  } catch {}
+  } catch { }
 
   const id =
     user.id ||
@@ -5036,26 +5158,26 @@ function accountSettings() {
       <fieldset class="account-type">
         <legend>${T("भूमिका (Role)", "Role")}</legend>
         ${[
-          ["farmer", "किसान", "Farmer"],
-          ["company", "कंपनी", "Company"],
-        ]
-          .map(
-            ([value, hi, en]) =>
-              `<label><input type="radio" name="role" value="${value}" ${currentRole === value ? "checked" : ""}>${T(hi, en)}</label>`,
-          )
-          .join("")}
+      ["farmer", "किसान", "Farmer"],
+      ["company", "कंपनी", "Company"],
+    ]
+      .map(
+        ([value, hi, en]) =>
+          `<label><input type="radio" name="role" value="${value}" ${currentRole === value ? "checked" : ""}>${T(hi, en)}</label>`,
+      )
+      .join("")}
       </fieldset>
 
       <div class="fieldgrid">
         ${fields
-          .map(
-            ([key, hi, en, type, auto, val, max]) =>
-              `<div class="field">
+      .map(
+        ([key, hi, en, type, auto, val, max]) =>
+          `<div class="field">
                 <label for="setting-${key}">${T(hi, en)}</label>
                 <input id="setting-${key}" name="${key}" type="${type}" autocomplete="${auto}" value="${esc(val)}" maxlength="${max}" ${key === "gstNumber" ? 'pattern="[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]" oninput="this.value=this.value.toUpperCase()"' : key === "pinCode" ? 'inputmode="numeric" pattern="[1-9][0-9]{5}"' : ""}>
               </div>`,
-          )
-          .join("")}
+      )
+      .join("")}
       </div>
 
       <button type="submit" class="primary dark">${T("जानकारी सेव करें", "Save details")}</button>
@@ -5128,7 +5250,7 @@ async function saveAccountSettings(event) {
       pinCode,
     };
     storage.set(AUTH_USER_KEY, JSON.stringify(updatedUser));
-  } catch {}
+  } catch { }
 
   // Send to backend (PATCH /protected-cultivation/update-user-info)
   try {
@@ -5222,8 +5344,9 @@ const individualMaterials = sample.map((row, index) => ({
   en: row[2],
   spec: row[3],
   unit: row[5],
-  base: [2450, 1680, 1120, 890, 320, 125, 36][index],
+  base: [2450, 1680, 1120, 890, 320, 125, 36, 45][index] || 45,
   gstPercent: 18,
+  inStock: false,
 }));
 const individualQuantities = {};
 let individualOrderId = storage.get("kryzen-individual-order-id") || null;
@@ -5260,6 +5383,8 @@ function individualRows() {
     }));
 }
 function changeIndividualQuantity(id, value) {
+  const item = individualMaterials.find((m) => m.id === id);
+  if (!item || item.inStock === false) return;
   const number = Number(value);
   if (!Number.isInteger(number) || number < 1 || number > 9999)
     return toast(
@@ -5269,7 +5394,11 @@ function changeIndividualQuantity(id, value) {
   render();
 }
 function addCart(id) {
-  if (!individualMaterials.some((item) => item.id === id)) return;
+  const item = individualMaterials.find((item) => item.id === id);
+  if (!item || item.inStock === false) {
+    toast(T("यह सामग्री अभी स्टॉक में उपलब्ध नहीं है।", "This item is currently out of stock."));
+    return;
+  }
   cart[id] = individualQuantities[id] || cart[id] || 1;
   storage.set("kryzen-individual-cart", JSON.stringify(cart));
   render();
@@ -5280,46 +5409,13 @@ function removeIndividualItem(id) {
   render();
 }
 function bookIndividualMaterials() {
-  const lines = individualRows(),
-    totals = materialTotals(lines);
-  if (!lines.length || totals.total < 99) return;
-  const orders = savedTransactions();
-  let index = orders.findIndex(
-    (order) =>
-      order.id === individualOrderId &&
-      order.kind === "individual" &&
-      orderCategory(order) === "quotations",
+  toast(
+    T(
+      "सभी व्यक्तिगत सामग्रियां अभी स्टॉक से बाहर हैं।",
+      "All individual materials are currently out of stock.",
+    ),
   );
-  const previous = index >= 0 ? orders[index] : null;
-  const now = new Date().toISOString();
-  const order = {
-    id: previous?.id || nextInvoiceId(orders),
-    kind: "individual",
-    createdAt: previous?.createdAt || now,
-    lastActionAt: now,
-    total: totals.total,
-    subtotal: totals.subtotal,
-    gst: totals.gst,
-    rounding: totals.rounding,
-    bookingAmount: 99,
-    paidAmount: 0,
-    paymentVerified: false,
-    status: "unpaid",
-    teamIncluded: false,
-    insurance: false,
-    sample: true,
-    quotationItems: lines,
-    individualCart: { ...cart },
-  };
-  if (index >= 0) orders[index] = order;
-  else orders.unshift(order);
-  individualOrderId = order.id;
-  storage.set("kryzen-transactions", JSON.stringify(orders));
-  storage.set("kryzen-individual-order-id", order.id);
-  $("#individual-booking-status").textContent = T(
-    "ऑर्डर मेरे खाते में सेव हो गया। पेमेंट गेटवे अभी जुड़ा नहीं है; कोई भुगतान नहीं लिया गया।",
-    "Order saved in My Account. The payment gateway is not connected; no payment has been taken.",
-  );
+  return;
 }
 function catalogue() {
   const rows = individualRows(),
@@ -5331,10 +5427,30 @@ function catalogue() {
       "अपनी जरूरत की सामग्री और मात्रा चुनें।",
       "Choose the materials and quantities you need.",
     ) +
-    `<p class="catalogue-preview">${T("नमूना मूल्य और GST · लाइव कैटलॉग जुड़ना बाकी है।", "Sample prices and GST · Live catalogue pending.")}</p><div class="layout individual-layout"><main><div class="individual-grid">${individualMaterials
+    `<div class="catalogue-out-of-stock-banner" role="status"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><div><strong>${T("सभी सामग्रियां वर्तमान में आउट ऑफ स्टॉक हैं", "All individual materials are currently out of stock")}</strong><p>${T("व्यक्तिगत कलपुर्जे / सामग्रियां अस्थायी रूप से अनुपलब्ध हैं। पूरे पॉलीहाउस प्रोजेक्ट पैकेज अभी उपलब्ध हैं।", "Individual components are temporarily out of stock for separate purchase. Complete polyhouse project packages remain available.")}</p></div></div><p class="catalogue-preview">${T("नमूना मूल्य और GST · लाइव कैटलॉग जुड़ना बाकी है।", "Sample prices and GST · Live catalogue pending.")}</p><div class="layout individual-layout"><main><div class="individual-grid">${individualMaterials
       .map((item) => {
+        const isOutOfStock = item.inStock === false;
         const quantity = individualQuantities[item.id] || cart[item.id] || 1;
-        return `<article class="individual-card">${itemPhoto(item.id, T(item.hi, item.en))}<h3>${T(item.hi, item.en)}</h3><p>${esc(item.spec)}</p><div class="individual-tiers">${[1, 10, 100].map((n) => `<div class="${(quantity >= 100 ? 100 : quantity >= 10 ? 10 : 1) === n ? "active" : ""}"><span>${T(n + " खरीदें", "Buy " + n + " at")}</span><strong>${money(individualRate(item, n))}</strong></div>`).join("")}</div><small>${T("प्रति इकाई दर · GST अलग", "Per-unit rate · GST extra")} · ${materialType(item.unit)}</small><div class="individual-controls"><button type="button" aria-label="${T("मात्रा घटाएं", "Decrease quantity")} ${esc(T(item.hi, item.en))}" onclick="changeIndividualQuantity('${item.id}',${quantity - 1})" ${quantity === 1 ? "disabled" : ""}>−</button><input type="number" min="1" max="9999" value="${quantity}" aria-label="${esc(T(item.hi, item.en))} quantity" onchange="changeIndividualQuantity('${item.id}',this.value)"><button type="button" aria-label="${T("मात्रा बढ़ाएं", "Increase quantity")} ${esc(T(item.hi, item.en))}" onclick="changeIndividualQuantity('${item.id}',${quantity + 1})" ${quantity === 9999 ? "disabled" : ""}>+</button></div><button type="button" class="primary dark" onclick="addCart('${item.id}')">ADD${cart[item.id] ? " · " + cart[item.id] : ""}</button></article>`;
+        return `<article class="individual-card ${isOutOfStock ? "out-of-stock" : ""}">
+          <div class="card-photo-wrap">
+            ${itemPhoto(item.id, T(item.hi, item.en))}
+            ${isOutOfStock ? `<span class="stock-badge out-of-stock">${T("आउट ऑफ स्टॉक", "Out of Stock")}</span>` : ""}
+          </div>
+          <h3>${T(item.hi, item.en)}</h3>
+          <p>${esc(item.spec)}</p>
+          <div class="individual-tiers">
+            ${[1, 10, 100].map((n) => `<div class="${(quantity >= 100 ? 100 : quantity >= 10 ? 10 : 1) === n ? "active" : ""}"><span>${T(n + " खरीदें", "Buy " + n + " at")}</span><strong>${money(individualRate(item, n))}</strong></div>`).join("")}
+          </div>
+          <small>${T("प्रति इकाई दर · GST अलग", "Per-unit rate · GST extra")} · ${materialType(item.unit)}</small>
+          <div class="individual-controls ${isOutOfStock ? "disabled" : ""}">
+            <button type="button" aria-label="${T("मात्रा घटाएं", "Decrease quantity")} ${esc(T(item.hi, item.en))}" onclick="changeIndividualQuantity('${item.id}',${quantity - 1})" ${isOutOfStock || quantity === 1 ? "disabled" : ""}>−</button>
+            <input type="number" min="1" max="9999" value="${quantity}" aria-label="${esc(T(item.hi, item.en))} quantity" ${isOutOfStock ? "disabled" : ""} onchange="changeIndividualQuantity('${item.id}',this.value)">
+            <button type="button" aria-label="${T("मात्रा बढ़ाएं", "Increase quantity")} ${esc(T(item.hi, item.en))}" onclick="changeIndividualQuantity('${item.id}',${quantity + 1})" ${isOutOfStock || quantity === 9999 ? "disabled" : ""}>+</button>
+          </div>
+          <button type="button" class="primary dark ${isOutOfStock ? "out-of-stock-btn" : ""}" ${isOutOfStock ? "disabled" : ""} onclick="addCart('${item.id}')">
+            ${isOutOfStock ? T("आउट ऑफ स्टॉक", "Out of Stock") : `ADD${cart[item.id] ? " · " + cart[item.id] : ""}`}
+          </button>
+        </article>`;
       })
       .join(
         "",
@@ -5344,7 +5460,7 @@ function catalogue() {
 
 // Temporary local UI testing; set false to use server-verified WhatsApp OTP.
 const CONFIGURE_OTP_TEST_MODE = false;
-const AUTH_API_BASE = "http://localhost:4501/protected-cultivation";
+const AUTH_API_BASE = `${API_BASE_URL}/protected-cultivation`;
 const AUTH_TOKEN_KEY = "kryzen-auth-token";
 const AUTH_USER_KEY = "kryzen-auth-user";
 let configureAuth = null;
